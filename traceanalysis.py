@@ -1,33 +1,52 @@
+# coding: utf-8
+
 import argparse
+
 import networkx as nx
 
+from connections import Connection, Event
 
-#extrai os argumentos
+# extracting arguments
 parser = argparse.ArgumentParser(description="Descrição")
 parser.add_argument("-f","--file",dest="filename",help="the trace file that will be analyzed", metavar="FILENAME")
 parser.add_argument("-n","--numberOfNodes",dest="numberOfNodes",help="the number of nodes in the network", metavar="NUMBER")
 parser.add_argument("-e","--end",dest="endtime",help="trace ending time", metavar="ENDTIME")
+parser.add_argument("-s", "--step", dest="log_step", help="The step for logging component information",
+                    metavar="NUMBER")
 args = parser.parse_args()
 
-#inicia as variáveis globais
-def _init():
-    global g, last_file_position, f, number_of_nodes, endtime
 
-    #inicializa com um valor default
-    number_of_nodes = int(args.numberOfNodes) if args.numberOfNodes else 10
+# connected_components_log_file = open("connected_components_log")
+
+
+# inicia as variáveis globais
+def _init():
+    global g, last_file_position, f, number_of_nodes, endtime, created_connections, \
+        open_connections, largest_connected_component, logging_step, last_log, connected_components_log
+
+    # inicializa com um valor default
+    number_of_nodes = int(args.numberOfNodes)
 
     g = nx.Graph()
     g.add_nodes_from(range(number_of_nodes))
 
     last_file_position = None
-    #print("_init")
-    filename = args.filename if args.filename else "default_file"
+    # print("_init")
+    filename = args.filename
     f = open(filename)
 
-    endtime = args.endtime if args.endtime else 10000
+    # default value is 30
+    logging_step = args.log_step if args.log_step else 30
+
+    endtime = args.endtime
+
+    created_connections = []
+    open_connections = []
+    connected_components_log = []
+    largest_connected_component = 0
 
 
-#pega a linha do trace e retorna um dicionário com os dados
+# pega a linha do trace e retorna um objeto de Event
 def get_event(line):
     l = line.split()
     d = dict()
@@ -36,35 +55,54 @@ def get_event(line):
     d["event"] = l[1];
     d["time"] = int(l[0]);
     d["status"] = l[4];
-    return d
+    e = Event(d)
+    return e
 
-#return True se a conexão está aberta
-def is_opening(event):
-    if event["status"].lower() == "up":
-        return True
-    elif event["status"].lower() == "down":
-        return False
-    else:
-        raise Exception("Não é evento de up nem de down")
 
-#initing é inclusivo, ending é exclusivo
+''' initing é inclusivo, ending é exclusivo
 def init_graph(initing, ending):
     g.add_nodes_from(range(initing, ending))
+'''
 
-#aplica um evento ao grafo (add ou remove uma aresta)
+
+# aplica um evento ao grafo (add ou remove uma aresta)
 def apply_graph_change(event):
-    if is_opening(event):
-        g.add_edge(event["from"],event["to"])
+    if event.is_opening():
+        g.add_edge(event.from_node, event.to_node)
     else:
-        g.remove_edge(event["from"],event["to"])
+        g.remove_edge(event.from_node, event.to_node)
 
-#e: o evento a ser processado
-def process_events(e):
+
+# e:o evento a ser processado
+def process_event(e):
+    # cria ou remove uma aresta do grafo
     apply_graph_change(e)
-    #faz outras coisas: salva relatório, mede alguma coisa, etc...
+
+    # adiciona uma conexão a open_connections ou encerra uma conexão
+    if e.is_opening:
+        c = Connection(e)
+        open_connections.append(c)
+    else:
+        # é um evento que fecha a conexão
+        close_connection(e)
+
+    # faz outras coisas: salva relatório, mede alguma coisa, etc...
     pass
 
-#retorna os eventos neste instante
+
+# recebe um evento por parâmetro e remove uma conexão de open_connections além de adicionar o tempo de encerramento
+# da conexão no objeto de Connection
+def close_connection(e):
+    to_remove = None
+    for c in open_connections:
+        if c.is_same_connection(e):
+            c.end_time = e.time
+            to_remove = c
+            break
+    open_connections.remove(to_remove)
+
+
+# retorna os eventos neste instante
 def get_events_at_instant(time):
     global last_file_position
     last_file_position = f.tell()
@@ -76,18 +114,76 @@ def get_events_at_instant(time):
         _list.append(e)
         last_file_position = f.tell()
 
-    #volta o ponteiro do arquivo para a última linha que foi lida
+    # volta o ponteiro do arquivo para a última linha que foi lida
     f.seek(last_file_position)
 
     return _list
 
-#roda a análise do início ao fim
+
+# roda a análise do início ao fim
 def run():
+    global largest_connected_component, last_log
+
     for instant in range(0,endtime):
         events = get_events_at_instant(instant)
         for e in events:
-            process_events(e)
+            process_event(e)
 
+        # get the largest_connected_component
+        connected_components = nx.connected_components(g)
+        larger = max([len(x) for x in connected_components])
+        largest_connected_component = larger if larger > largest_connected_component else largest_connected_component
+
+        # instant is equivalent to 'now'
+        if instant - last_log > logging_step:
+            last_log = instant
+            connected_components_log.append("%d    %s" % (instant, str(connected_components)))
+
+    # perform post processing information extraction
+    post_processing()
+
+
+# setting end time for connections which are not closed at trace ending
+def close_remaining_connections(t):
+    for c in created_connections:
+        c.end_time = t
+
+
+# perform post processing information extraction
+def post_processing():
+    # write down the log information
+    print("Number of connections: %d" % (get_number_of_connections(),))
+    print("Average number of connections (per nodes): %d" % (get_average_number_of_connections(),))
+    print("Connections per minute: %d" % (get_connections_per_minute(),))
+    print("Total connection time: %d" % (get_total_connection_time(),))
+    print("Average connection time (per connection): %d" % (get_average_connection_time()))
+    print("Largest connected component: %d" % (largest_connected_component,))
+    do_the_log()
+
+
+def do_the_log():
+    pass
+
+
+def get_number_of_connections():
+    return len(created_connections)
+
+
+def get_average_number_of_connections():
+    return get_number_of_connections() / number_of_nodes
+
+
+def get_total_connection_time():
+    return sum(c.duration() for c in created_connections)
+
+
+def get_average_connection_time():
+    return get_total_connection_time() / get_number_of_connections()
+
+
+def get_connections_per_minute():
+    minutes = endtime / 60;
+    return get_number_of_connections() / minutes
 
 def main():
     _init()
@@ -96,7 +192,7 @@ def main():
 if __name__ == "__main__":
     main()
 
-#conceito de como o processo dos eventos deve funcionar
+# conceito de como o processo dos eventos deve funcionar
 '''
 while now <= end:
     while event_time <= now:
