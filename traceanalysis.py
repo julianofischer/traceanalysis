@@ -24,7 +24,8 @@ args = parser.parse_args()
 # inicia as variáveis globais
 def _init():
     global g, last_file_position, f, number_of_nodes, endtime, created_connections, \
-        open_connections, largest_connected_component, logging_step, last_log, connected_components_log
+        open_connections, largest_connected_component, logging_step, last_log, connected_components_log, \
+    max_node_degree, list_of_average_node_degrees
 
     # inicializa com um valor default
     number_of_nodes = int(args.numberOfNodes)
@@ -47,6 +48,8 @@ def _init():
     connected_components_log = []
     largest_connected_component = 0
     last_log = 0
+    max_node_degree = 0;
+    list_of_average_node_degrees = []
 
 
 # pega a linha do trace e retorna um objeto de Event
@@ -141,7 +144,7 @@ def get_events_at_instant(time):
 
 # roda a análise do início ao fim
 def run():
-    global largest_connected_component, last_log
+    global largest_connected_component, last_log, max_node_degree, list_of_average_node_degrees
 
     for instant in range(0, endtime+1):
         # print("Instant %d" % (instant,))
@@ -157,6 +160,11 @@ def run():
         largest_connected_component = larger if larger > largest_connected_component else largest_connected_component
 
         list_of_connected_components = list(nx.connected_components(g))
+
+        degrees = [g.degree(node) for node in g.nodes()]
+        max_node_degree = max(max_node_degree, max(degrees))
+
+        list_of_average_node_degrees.append(sum(degrees)/len(degrees))
 
         # instant is equivalent to 'now'
         if instant - last_log > logging_step:
@@ -179,10 +187,12 @@ def post_processing():
     # write down the log information
     print("Number of connections: %d" % (get_number_of_connections(),))
     print("Average number of connections (per nodes): %f" % (get_average_number_of_connections(),))
-    print("Connections per minute: %f" % (get_connections_per_minute(),))
+    print("Connections per minute: %f" % (get_connections_per_minute(), ))
     print("Total connection time: %d" % (get_total_connection_time(),))
     print("Average connection time (per connection): %f" % (get_average_connection_time()))
     print("Largest connected component: %d" % (largest_connected_component,))
+    print("Max node degree: %d" % (max_node_degree,))
+    print("Average node degree: %f" % (get_average_node_degree(),))
     do_the_log()
 
 
@@ -194,6 +204,10 @@ def do_the_log():
     # loggin connections
     connections_out_file = open("connections_out_file.txt", "w+")
     connections_out_file.writelines([str(c)+"\n" for c in created_connections])
+
+
+def get_average_node_degree():
+    return sum(list_of_average_node_degrees)/len(list_of_average_node_degrees)
 
 
 def get_number_of_connections():
