@@ -1,13 +1,39 @@
-# traceanalysis
+# traceanalysis  - extracting information from [ONE's](https://akeranen.github.io/the-one/) connection traces.
+## Extracted information
+- largest connected component
+- total number of connections
+- connections per minute
+- total connection time
+- average connection time (per connection)
+- average number of connections (per node)
+- connected components evolution (each -step seconds)
+- max node degree
+- average node degree (per nodes per second)
 
-- maior componente conexa
-- número total de conexões
-- conexões por minuto
-- tempo total de conexão
-- tempo médio de conexão (por conexão)
-- número médio de conexões (por nó)
-- evolução das componentes conexas (a cada X segundos)
-- grau máximo de um nó
-- grau médio (por nós por segundos)
 
-- Ler artigos de análise de traces: tempo entre conexões, leis de potência para estas variáveis, etc.
+## Prerequisites
+### [Python3+](http://www.python.org/)
+    sudo apt-get install python3
+### [Networkx](https://networkx.github.io/)
+    sudo apt-get install python3-networkx
+    
+## Usage
+    traceanalysis.py [-h] [-f FILENAME] [-n NUMBER] [-e ENDTIME]
+                            [-s NUMBER]
+
+    Description
+
+    arguments:
+      -h, --help            show this help message and exit
+      -f FILENAME, --file FILENAME
+                            the trace file that will be analyzed
+      -n NUMBER, --numberOfNodes NUMBER
+                            the number of nodes in the network
+      -e ENDTIME, --end ENDTIME
+                            trace ending time
+      -s NUMBER, --step NUMBER
+                            The step for logging component information
+
+
+### Usage example
+     python3 traceanalysis.py -n 62 -e 10000 --step 60 -f rollernet
