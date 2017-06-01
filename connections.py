@@ -8,7 +8,7 @@ class Event:
         self.from_node = d["from"]
         self.to_node = d["to"]
         self.time = d["time"]
-        self.__status = d["status"]
+        self.__status = d["status"].lower()
         self.opening = None
 
         #print("Constructing event with status %s" % (self.__status,))
@@ -18,7 +18,7 @@ class Event:
         elif self.__status == "down":
             self.opening = False
         else:
-            raise Exception("Evento não é down nem up")
+            raise Exception("Evento não é down nem up (%s)" % (self.__status,))
 
     def is_opening(self):
         return self.opening
