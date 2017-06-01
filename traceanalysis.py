@@ -6,7 +6,11 @@ import networkx as nx
 
 from connections import Connection, Event
 
+__author__ = "Juliano Fischer Naves"
+
 COMPONENTS_FILE_NAME = "components_log.txt"
+CONNECTIONSLOG_FILE_NAME = "connections_out_file.txt"
+
 
 # extracting arguments
 parser = argparse.ArgumentParser(description="Descrição")
@@ -21,20 +25,19 @@ args = parser.parse_args()
 # connected_components_log_file = open("connected_components_log")
 
 
-# inicia as variáveis globais
+# init global vars
 def _init():
     global g, last_file_position, f, number_of_nodes, endtime, created_connections, \
         open_connections, largest_connected_component, logging_step, last_log, connected_components_log, \
     max_node_degree, list_of_average_node_degrees
 
-    # inicializa com um valor default
     number_of_nodes = int(args.numberOfNodes)
 
     g = nx.Graph()
     g.add_nodes_from(range(number_of_nodes))
 
     last_file_position = None
-    # print("_init")
+
     filename = args.filename
     f = open(filename)
 
@@ -52,7 +55,7 @@ def _init():
     list_of_average_node_degrees = []
 
 
-# pega a linha do trace e retorna um objeto de Event
+# convert a trace line to an object of Event
 def get_event(line):
     l = line.split()
     d = dict()
@@ -71,7 +74,7 @@ def init_graph(initing, ending):
 '''
 
 
-# aplica um evento ao grafo (add ou remove uma aresta)
+# apply and event to the graph (add or remove an edge)
 def apply_graph_change(event):
     if event.is_opening():
         g.add_edge(event.from_node, event.to_node)
@@ -79,29 +82,21 @@ def apply_graph_change(event):
         g.remove_edge(event.from_node, event.to_node)
 
 
-# e:o evento a ser processado
+# e: the event to be processed
 def process_event(e):
-    # print ("processing event: "+str(e))
-    # cria ou remove uma aresta do grafo
     apply_graph_change(e)
 
-    # adiciona uma conexão a open_connections ou encerra uma conexão
+    # add one connection to open_connections or close the connection
     if e.is_opening():
         c = Connection(e)
         open_connections.append(c)
         created_connections.append(c)
-        # print ("Opening connection "+str(c))
     else:
-        # é um evento que fecha a conexão
-        # print("Fecha conexão")
+        # it is a connection closing event
         close_connection(e)
 
-    # faz outras coisas: salva relatório, mede alguma coisa, etc...
-    pass
 
-
-# recebe um evento por parâmetro e remove uma conexão de open_connections além de adicionar o tempo de encerramento
-# da conexão no objeto de Connection
+# receives an event and remove a connection from open_connections besides add closing time to the object of Connection
 def close_connection(e):
     to_remove = None
     for c in open_connections:
@@ -112,7 +107,7 @@ def close_connection(e):
     open_connections.remove(to_remove)
 
 
-# retorna os eventos neste instante
+# returns the events of this instant
 def get_events_at_instant(time):
     global last_file_position
     last_file_position = f.tell()
@@ -125,6 +120,7 @@ def get_events_at_instant(time):
 
     e = get_event(l)
 
+    # only events of this instant (now)
     while e.time == time:
         _list.append(e)
         last_file_position = f.tell()
@@ -136,22 +132,21 @@ def get_events_at_instant(time):
 
         e = get_event(l)
 
-    # volta o ponteiro do arquivo para a última linha que foi lida
+    # the last read event occurred after "instant"
+    # Moves the file pointer to the last read line
     f.seek(last_file_position)
 
     return _list
 
 
-# roda a análise do início ao fim
+# run the analysis from begin to ending
 def run():
     global largest_connected_component, last_log, max_node_degree, list_of_average_node_degrees
 
     for instant in range(0, endtime+1):
-        # print("Instant %d" % (instant,))
         events = get_events_at_instant(instant)
 
         for e in events:
-            # print (e)
             process_event(e)
 
         # get the largest_connected_component
@@ -202,30 +197,36 @@ def do_the_log():
     components_file.writelines([str(c) for c in connected_components_log])
 
     # loggin connections
-    connections_out_file = open("connections_out_file.txt", "w+")
+    connections_out_file = open(CONNECTIONSLOG_FILE_NAME, "w+")
     connections_out_file.writelines([str(c)+"\n" for c in created_connections])
 
 
+# get de average node degree (number of links)
 def get_average_node_degree():
     return sum(list_of_average_node_degrees)/len(list_of_average_node_degrees)
 
 
+# get the total number of connections
 def get_number_of_connections():
     return len(created_connections)
 
 
+# get the average number of connections by node
 def get_average_number_of_connections():
     return get_number_of_connections() / number_of_nodes
 
 
+# get the total connection time - sum of duration of all connections
 def get_total_connection_time():
     return sum(c.duration() for c in created_connections)
 
 
+# get the average connection time  - total_connection_time/total_of_connections
 def get_average_connection_time():
     return get_total_connection_time() / get_number_of_connections()
 
 
+# get the number of connections per minute
 def get_connections_per_minute():
     minutes = endtime / 60
     return get_number_of_connections() / minutes
@@ -237,15 +238,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-# conceito de como o processo dos eventos deve funcionar
-'''
-while now <= end:
-    while event_time <= now:
-        processa_evento() #apply_graph_change()
-        line = f.readline()
-        event = get_event(line)
-
-    now = now + 1
-
-'''
