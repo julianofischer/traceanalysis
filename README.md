@@ -1,4 +1,4 @@
-# traceanalysis
+# traceanalysis  - extracting information from [ONE's](https://akeranen.github.io/the-one/) connection traces.
 ## Extracted information
 - largest connected component
 - total number of connections
