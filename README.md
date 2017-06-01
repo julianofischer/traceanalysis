@@ -36,4 +36,6 @@
 
 
 ### Usage example
-     python3 traceanalysis.py -n 62 -e 10000 --step 60 -f rollernet
+    python3 traceanalysis.py -n 62 -e 10000 --step 60 -f rollernet
+#### Ignore warnings
+    python3 -W ignore traceanalysis.py -n 62 -e 10000 --step 60 -f rollernet

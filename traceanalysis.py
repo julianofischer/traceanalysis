@@ -1,8 +1,8 @@
 # coding: utf-8
 
 import argparse
-
 import networkx as nx
+import warnings
 
 from connections import Connection, Event
 
@@ -18,7 +18,7 @@ parser.add_argument("-f","--file",dest="filename",help="the trace file that will
 parser.add_argument("-n","--numberOfNodes",dest="numberOfNodes",help="the number of nodes in the network", metavar="NUMBER")
 parser.add_argument("-e","--end",dest="endtime",help="trace ending time", metavar="ENDTIME")
 parser.add_argument("-s", "--step", dest="log_step", help="The step for logging component information",
-                    metavar="NUMBER")
+                    metavar="STEP")
 args = parser.parse_args()
 
 
@@ -79,7 +79,10 @@ def apply_graph_change(event):
     if event.is_opening():
         g.add_edge(event.from_node, event.to_node)
     else:
-        g.remove_edge(event.from_node, event.to_node)
+        if g.has_edge(event.from_node, event.to_node):
+            g.remove_edge(event.from_node, event.to_node)
+        else:
+            warnings.warn("Trying to remove an inexistent edge")
 
 
 # e: the event to be processed
