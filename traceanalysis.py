@@ -11,12 +11,16 @@ __author__ = "Juliano Fischer Naves"
 COMPONENTS_FILE_NAME = "components_log.txt"
 CONNECTIONSLOG_FILE_NAME = "connections_out_file.txt"
 
+LARGEST_CONNECTED_COMPONENT_REPORT = "largest_connected_components_report.txt"
+
+NUMBER_OF_CONNECTED_COMPONENTS_REPORT = "number_of_connected_components_report.txt"
 
 # extracting arguments
 parser = argparse.ArgumentParser(description="Descrição")
-parser.add_argument("-f","--file",dest="filename",help="the trace file that will be analyzed", metavar="FILENAME")
-parser.add_argument("-n","--numberOfNodes",dest="numberOfNodes",help="the number of nodes in the network", metavar="NUMBER")
-parser.add_argument("-e","--end",dest="endtime",help="trace ending time", metavar="ENDTIME")
+parser.add_argument("-f", "--file", dest="filename", help="the trace file that will be analyzed", metavar="FILENAME")
+parser.add_argument("-n", "--numberOfNodes",dest="numberOfNodes", help="the number of nodes in the network",
+                    metavar="NUMBER")
+parser.add_argument("-e", "--end", dest="endtime",help="trace ending time", metavar="ENDTIME")
 parser.add_argument("-s", "--step", dest="log_step", help="The step for logging component information",
                     metavar="STEP")
 args = parser.parse_args()
@@ -27,7 +31,7 @@ args = parser.parse_args()
 
 # init global vars
 def _init():
-    global g, last_file_position, f, number_of_nodes, endtime, created_connections, \
+    global g, last_file_position, __f, number_of_nodes, endtime, created_connections, \
         open_connections, largest_connected_component, logging_step, last_log, connected_components_log, \
     max_node_degree, list_of_average_node_degrees
 
@@ -39,7 +43,7 @@ def _init():
     last_file_position = None
 
     filename = args.filename
-    f = open(filename)
+    __f = open(filename)
 
     # default value is 30
     logging_step = int(args.log_step) if int(args.log_step) else 30
@@ -48,7 +52,7 @@ def _init():
 
     created_connections = []
     open_connections = []
-    connected_components_log = []
+    connected_components_log = {}
     largest_connected_component = 0
     last_log = 0
     max_node_degree = 0;
@@ -113,8 +117,8 @@ def close_connection(e):
 # returns the events of this instant
 def get_events_at_instant(time):
     global last_file_position
-    last_file_position = f.tell()
-    l = f.readline().strip()
+    last_file_position = __f.tell()
+    l = __f.readline().strip()
     _list = []
 
     # end of the file
@@ -126,8 +130,8 @@ def get_events_at_instant(time):
     # only events of this instant (now)
     while e.time == time:
         _list.append(e)
-        last_file_position = f.tell()
-        l = f.readline().strip()
+        last_file_position = __f.tell()
+        l = __f.readline().strip()
 
         # end of the file
         if len(l) == 0:
@@ -137,7 +141,7 @@ def get_events_at_instant(time):
 
     # the last read event occurred after "instant"
     # Moves the file pointer to the last read line
-    f.seek(last_file_position)
+    __f.seek(last_file_position)
 
     return _list
 
@@ -154,8 +158,8 @@ def run():
 
         # get the largest_connected_component
         connected_components = nx.connected_components(g)
-        larger = max([len(x) for x in connected_components])
-        largest_connected_component = larger if larger > largest_connected_component else largest_connected_component
+        largest = max([len(x) for x in connected_components])
+        largest_connected_component = largest if largest > largest_connected_component else largest_connected_component
 
         list_of_connected_components = list(nx.connected_components(g))
 
@@ -165,9 +169,10 @@ def run():
         list_of_average_node_degrees.append(sum(degrees)/len(degrees))
 
         # instant is equivalent to 'now'
-        if instant - last_log > logging_step:
+        if instant - last_log >= logging_step:
             last_log = instant
-            connected_components_log.append("%d    %s\n" % (instant, str(list_of_connected_components)))
+            # connected_components_log.append("%d    %s\n" % (instant, str(list_of_connected_components)))
+            connected_components_log[instant] = list_of_connected_components
 
     close_remaining_connections(endtime)
     # perform post processing information extraction
@@ -189,6 +194,10 @@ def post_processing():
     print("Total connection time: %d" % (get_total_connection_time(),))
     print("Average connection time (per connection): %f" % (get_average_connection_time()))
     print("Largest connected component: %d" % (largest_connected_component,))
+    print("Average largest connected component %f" % (get_average_largest_connected_component(),))
+    print("Median largest connected component %f" % (get_median_largest_connected_component(),))
+    print("Average number of connected components %f" % (get_average_number_of_connected_components(),))
+    print("Median number of connected components %f" % (get_median_number_of_connected_components(),))
     print("Max node degree: %d" % (max_node_degree,))
     print("Average node degree: %f" % (get_average_node_degree(),))
     do_the_log()
@@ -197,11 +206,18 @@ def post_processing():
 def do_the_log():
     # logging components
     components_file = open(COMPONENTS_FILE_NAME, "w+")
-    components_file.writelines([str(c) for c in connected_components_log])
+    for key in sorted(connected_components_log):
+        components_file.write("%d    %s\n" % (key, str(connected_components_log[key])))
 
-    # loggin connections
+    # logging connections
     connections_out_file = open(CONNECTIONSLOG_FILE_NAME, "w+")
     connections_out_file.writelines([str(c)+"\n" for c in created_connections])
+
+    # largest connected component
+    get_largest_connected_component_evolution()
+
+    # number of connected components
+    get_number_of_connected_components()
 
 
 # get de average node degree (number of links)
@@ -233,6 +249,60 @@ def get_average_connection_time():
 def get_connections_per_minute():
     minutes = endtime / 60
     return get_number_of_connections() / minutes
+
+
+# format: time    largest_connected_component
+# output: largest_connected_components_report.txt
+def get_largest_connected_component_evolution():
+    with open(LARGEST_CONNECTED_COMPONENT_REPORT, "w+") as f:
+        for key in sorted(connected_components_log):
+            components = connected_components_log[key]
+            largest = max([len(x) for x in components])
+            f.write("%d    %d\n" % (key, largest))
+
+
+def get_average_largest_connected_component():
+    l = []
+    for components in connected_components_log.values():
+        l.append(max([len(x) for x in components]))
+
+    return sum(l)/len(l)
+
+
+def get_median_largest_connected_component():
+    l = []
+    for components in connected_components_log.values():
+        l.append(max([len(x) for x in components]))
+
+    return get_median(l)
+
+
+# format: time    number of components (partitions)
+# output: number_of_connected_components_report.txt
+def get_number_of_connected_components():
+    with open(NUMBER_OF_CONNECTED_COMPONENTS_REPORT, "w+") as f:
+        for key in sorted(connected_components_log):
+            number_of_components = len(connected_components_log[key])
+            f.write("%d    %d\n" % (key, number_of_components))
+
+
+def get_average_number_of_connected_components():
+    l = [len(x) for x in connected_components_log.values()]
+    return sum(l) / len(l)
+
+
+def get_median_number_of_connected_components():
+    l = [len(x) for x in connected_components_log.values()]
+    return get_median(l)
+
+
+# returns the median value of a list
+def get_median(l):
+    l = sorted(l)
+    if len(l) % 2 == 1:
+        return l[len(l)//2]
+    else:
+        return (l[len(l)//2] + l[(len(l)//2)-1])/2
 
 
 def main():
