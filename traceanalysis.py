@@ -15,6 +15,8 @@ LARGEST_CONNECTED_COMPONENT_REPORT = "largest_connected_components_report.txt"
 
 NUMBER_OF_CONNECTED_COMPONENTS_REPORT = "number_of_connected_components_report.txt"
 
+CONNECTIONS_DURATION_CDF_REPORT = "connections_duration_pdf_report.txt"
+
 # extracting arguments
 parser = argparse.ArgumentParser(description="Descrição")
 parser.add_argument("-f", "--file", dest="filename", help="the trace file that will be analyzed", metavar="FILENAME")
@@ -46,7 +48,7 @@ def _init():
     __f = open(filename)
 
     # default value is 30
-    logging_step = int(args.log_step) if int(args.log_step) else 30
+    logging_step = int(args.log_step) if args.log_step else 30
 
     endtime = int(args.endtime)
 
@@ -214,10 +216,12 @@ def do_the_log():
     connections_out_file.writelines([str(c)+"\n" for c in created_connections])
 
     # largest connected component
-    get_largest_connected_component_evolution()
+    log_largest_connected_component_evolution()
 
     # number of connected components
-    get_number_of_connected_components()
+    log_number_of_connected_components()
+
+    log_connection_duration_pdf()
 
 
 # get de average node degree (number of links)
@@ -253,12 +257,38 @@ def get_connections_per_minute():
 
 # format: time    largest_connected_component
 # output: largest_connected_components_report.txt
-def get_largest_connected_component_evolution():
+def log_largest_connected_component_evolution():
     with open(LARGEST_CONNECTED_COMPONENT_REPORT, "w+") as f:
         for key in sorted(connected_components_log):
             components = connected_components_log[key]
             largest = max([len(x) for x in components])
             f.write("%d    %d\n" % (key, largest))
+
+
+def get_cdf(a_list):
+    d = {}
+    a_list = sorted(a_list)
+    size = len(a_list)
+    for i, item in enumerate(a_list):
+        d[item] = (i+1)/size
+
+    return d
+
+
+def log_connection_duration_pdf():
+    durations = [c.duration() for c in created_connections]
+    cdf_dict = get_cdf(durations)
+
+    with open(CONNECTIONS_DURATION_CDF_REPORT, "w+") as f:
+        for i in cdf_dict:
+            f.write("%f    %f\n" % (i, cdf_dict[i]))
+
+
+   # with open(CONNECTIONS_DURATION_PDF_REPORT,"w+") as f:
+   #    for d in durations:
+   #         f.write("%f    ")
+
+
 
 
 def get_average_largest_connected_component():
@@ -279,7 +309,7 @@ def get_median_largest_connected_component():
 
 # format: time    number of components (partitions)
 # output: number_of_connected_components_report.txt
-def get_number_of_connected_components():
+def log_number_of_connected_components():
     with open(NUMBER_OF_CONNECTED_COMPONENTS_REPORT, "w+") as f:
         for key in sorted(connected_components_log):
             number_of_components = len(connected_components_log[key])
